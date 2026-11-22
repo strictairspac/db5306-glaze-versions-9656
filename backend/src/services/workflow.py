@@ -102,3 +102,42 @@ def review(identity, note, actor):
             raise HTTPException(409, '该证据已经复核')
         log(conn, actor, 'review', identity)
         return found(conn, evidence, identity)
+
+
+def _domain_error(exc):
+    return HTTPException(422, str(exc))
+
+
+def _case_payload(case_id):
+    with engine.connect() as conn:
+        case = found(conn, cases, case_id)
+    return case, case['payload']
+
+
+def preview_renumber(case_id, commit_seq, changes):
+    _, payload = _case_payload(case_id)
+    try:
+        return domain.preview_renumber(payload, [change.model_dump() for change in changes], commit_seq)
+    except (ValueError, TypeError) as exc:
+        raise _domain_error(exc)
+
+
+def register_renumber(case_id, commit_seq, changes, actor):
+    rows = [change.model_dump() for change in changes]
+    with engine.begin() as conn:
+        case = found(conn, cases, case_id)
+        try:
+            updated = domain.register_renumber(case['payload'], rows, commit_seq)
+        except (ValueError, TypeError) as exc:
+            raise _domain_error(exc)
+        conn.execute(cases.update().where(cases.c.id == case_id).values(payload=updated))
+        log(conn, actor, 'register_renumber', f'{case_id}:{commit_seq}')
+    return domain.renumber_snapshot(updated, commit_seq)
+
+
+def preview_lookup(case_id, glaze_no, read_seq):
+    _, payload = _case_payload(case_id)
+    try:
+        return domain.preview_lookup(payload, glaze_no, read_seq)
+    except (ValueError, TypeError) as exc:
+        raise _domain_error(exc)

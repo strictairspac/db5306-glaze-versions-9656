@@ -4,7 +4,7 @@ from sqlalchemy import text
 from src.config.settings import cache, engine
 from src.controllers.workflow import download
 from src.models.tables import audit, cases, evidence, runs
-from src.schemas.workflow import CaseForm, LoginForm, ReviewForm
+from src.schemas.workflow import CaseForm, LoginForm, LookupForm, RenumberForm, ReviewForm
 from src.services import domain, workflow
 from src.services.security import current_user, login, operator, reviewer
 
@@ -37,6 +37,21 @@ def list_cases(_=Depends(current_user)):
 @router.post('/cases', status_code=201)
 def create_case(form: CaseForm, actor=Depends(operator)):
     return workflow.make_case(form.title, form.payload, actor)
+
+
+@router.post('/cases/{case_id}/renumbers/preview')
+def preview_renumber(case_id: int, form: RenumberForm, _=Depends(operator)):
+    return workflow.preview_renumber(case_id, form.commit_seq, form.changes)
+
+
+@router.post('/cases/{case_id}/renumbers', status_code=201)
+def register_renumber(case_id: int, form: RenumberForm, actor=Depends(operator)):
+    return workflow.register_renumber(case_id, form.commit_seq, form.changes, actor)
+
+
+@router.post('/cases/{case_id}/lookups/preview')
+def preview_lookup(case_id: int, form: LookupForm, _=Depends(current_user)):
+    return workflow.preview_lookup(case_id, form.glaze_no, form.read_seq)
 
 
 @router.get('/runs')
